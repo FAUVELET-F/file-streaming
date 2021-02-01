@@ -23,7 +23,7 @@ public class Download {
 
     private final Logger logger = LoggerFactory.getLogger(Download.class);
 
-    @Value("classpath:files/Pizigani_1367_Chart_10MB.jpg")
+    @Value("classpath:files/10MB.jpg")
     Resource resourceFile;
 
     @GetMapping (value = "/downloadwithstreaming", produces = MediaType.APPLICATION_JSON_VALUE)
