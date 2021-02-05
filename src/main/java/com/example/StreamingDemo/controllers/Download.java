@@ -1,5 +1,12 @@
 package com.example.StreamingDemo.controllers;
 
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfReader;
+import com.itextpdf.kernel.utils.PageRange;
+import com.itextpdf.kernel.utils.PdfSplitter;
+import org.apache.pdfbox.io.MemoryUsageSetting;
+import org.apache.pdfbox.multipdf.PageExtractor;
+import org.apache.pdfbox.pdmodel.PDDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,13 +30,12 @@ public class Download {
 
     private final Logger logger = LoggerFactory.getLogger(Download.class);
 
-    @Value("classpath:files/10MB.jpg")
+    @Value("classpath:files/63MB.pdf")
     Resource resourceFile;
 
     @GetMapping (value = "/downloadwithstreaming", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<StreamingResponseBody> downloadwithstreaming() {
         StreamingResponseBody stream = out -> {
-            final String home = System.getProperty("user.home");
             final File file = resourceFile.getFile();
 
             if(file.exists()){
@@ -46,7 +52,6 @@ public class Download {
 
     @GetMapping (value = "/download", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<byte[]> download(final HttpServletResponse response) throws IOException {
-        final String home = System.getProperty("user.home");
         final File file = resourceFile.getFile();
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -59,6 +64,51 @@ public class Download {
             }
         }
         return new ResponseEntity(baos.toByteArray(), HttpStatus.OK);
+    }
+
+    @GetMapping (value = "/downloadSplitted/itext", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<byte[]> downloadSplittedItext(final HttpServletResponse response) throws IOException {
+        InputStream resourceFileInputStream = resourceFile.getInputStream();
+
+        PdfDocument pdfDoc = new PdfDocument(new PdfReader(resourceFileInputStream));
+        PdfSplitter pdfSplitter = new PdfSplitter(pdfDoc);
+        PdfDocument pdfExtractedDoc = pdfSplitter.extractPageRange(new PageRange("12000-12002"));
+        pdfDoc.close();
+        resourceFileInputStream.close();
+
+
+
+        ByteArrayOutputStream bos = (ByteArrayOutputStream) pdfExtractedDoc.getWriter().getOutputStream();
+        bos.toByteArray();
+        pdfExtractedDoc.close();
+
+        return new ResponseEntity(bos.toByteArray(), HttpStatus.OK);
+    }
+
+    @GetMapping (value = "/downloadSplitted/pdfbox", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<byte[]> downloadSplittedPdfBox(final HttpServletResponse response) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        InputStream resourceFileInputStream = resourceFile.getInputStream();
+
+        PDDocument document = PDDocument.load(resourceFileInputStream, MemoryUsageSetting.setupMixed(50 * 1024 * 1024));
+
+        PageExtractor pageExtractor = new PageExtractor(document);
+        pageExtractor.setStartPage(12000);
+        pageExtractor.setEndPage(12002);
+
+
+        PDDocument extractedDocument = pageExtractor.extract();
+        extractedDocument.save(baos);
+        extractedDocument.close();
+        document.close();
+        resourceFileInputStream.close();
+        byte[] bytes = baos.toByteArray();
+        baos.close();
+        return new ResponseEntity(baos.toByteArray(), HttpStatus.OK);
+    }
+    private void printMemoryUsage(){
+        Long memoryUsageInMB = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory())/(1024L * 1024L);
+        System.out.println(memoryUsageInMB +"MB");
     }
 
     private void writeFileToStream(File file,OutputStream outputStream){
